@@ -1,10 +1,12 @@
-import { getContractAddressesForNetworkOrThrow } from '@0x/contract-addresses';
+import { getContractAddressesForNetworkOrThrow as getV2_1ContractAddresses } from '@0x/contract-addresses';
+import { getContractAddressesForNetworkOrThrow as getV2_0ContractAddresses } from '@0x/contract-addresses-v2';
 import { Exchange as ExchangeArtifact } from '@0x/contract-artifacts';
 import { AbiEncoder, BigNumber } from '@0x/utils';
 import { BigQuery } from '@google-cloud/bigquery';
 import { ContractAbi, MethodAbi } from 'ethereum-types';
+import * as fs from 'mz/fs';
 import * as R from 'ramda';
-import { argv } from 'yargs';
+import * as yargs from 'yargs';
 
 interface BigQueryContractCallTracesResp {
     transaction_hash: string;
@@ -18,6 +20,7 @@ interface BigQueryContractCallTracesResp {
     call_output: string;
     value: {toString(): string};
     status: number;
+    error: string;
 }
 
 // Parsed contract call entry.
@@ -31,6 +34,8 @@ interface ContractCall {
     // Comma separated list of trace address in call tree.
     // (PrimaryColumn)
     traceAddress: string;
+    // The decoded function name.
+    functionName: string;
     // The address of the sender of the transaction.
     fromAddress: string;
     // The address of the top-level contract that was called.
@@ -47,45 +52,93 @@ interface ContractCall {
     value: BigNumber;
     // Either 1 (success) or 0 (failure).
     status: number;
-    // The decoded function name.
-    functionName: string;
+    // Error message if this call reverted.
+    error?: string;
 }
 
 interface ContractFunctionNamesBySelector {
     [selector: string]: string;
 }
 
+enum CallType {
+    Call = 'call',
+    StaticCall = 'staticcall',
+    Callcode = 'callcode',
+    DelegateCall = 'delegatecall',
+}
+
+interface FetchOpts {
+    calleeAddresses: string[];
+    callTypes: CallType[];
+    startBlock?: number;
+    endBlock?: number;
+    callerAddresses?: string[];
+    statusCodes?: number[];
+    limit?: number;
+}
+
+const ARGV = yargs
+    .number('startBlock')
+    .number('endBlock')
+    .number('limit')
+    .boolean('all')
+    .boolean('pretty')
+    .string('output')
+    .array('status')
+    .array('caller')
+    .array('callType')
+    .argv;
+
 // The network ID the Exchange contract is deployed on.
 const NETWORK_ID = 1;
 // The earliest block number to search.
-const START_BLOCK = argv.startBlock as number || 8140780;
+const START_BLOCK: number | undefined = ARGV.startBlock as number;
+const END_BLOCK: number | undefined = ARGV.endBlock as number;
+const CALLERS: string[] = ARGV.caller as string[] || [];
+const CALL_TYPES: CallType[] = ARGV.callee as CallType[] || [];
+const STATUS_CODES: number[] = ARGV.status as number[] || [];
+const ALL_FUNCTIONS = ARGV.all as boolean || false;
+const LIMIT: number | undefined = ARGV.limit;
+const OUTPUT_FILE: string | undefined = ARGV.output;
+const PRETTIFY: boolean = ARGV.pretty || false;
 
 (async () => {
     const results = parseBigTableQueryResults(
         await fetchTraces(
-            START_BLOCK,
-            [
-                getContractAddressesForNetworkOrThrow(NETWORK_ID).exchange,
-            ],
+            {
+                calleeAddresses: [
+                    getV2_0ContractAddresses(NETWORK_ID).exchange,
+                    getV2_1ContractAddresses(NETWORK_ID).exchange,
+                ],
+                callerAddresses: CALLERS,
+                callTypes: CALL_TYPES,
+                startBlock: START_BLOCK,
+                endBlock: END_BLOCK,
+                statusCodes: STATUS_CODES,
+                limit: LIMIT,
+            }
         ),
-        getStatefulContractFunctions(ExchangeArtifact.compilerOutput.abi),
+        getContractFunctions(ExchangeArtifact.compilerOutput.abi, ALL_FUNCTIONS),
     );
-    // Print out results
-    for (const r of results) {
-        if (argv.pretty) {
-            console.log(JSON.stringify(r, null, '  '));
-        } else {
-            console.log(JSON.stringify(r));
-        }
-    }
+    await writeOutput(results);
 })();
+
+async function writeOutput(results: ContractCall[]) {
+    const json = PRETTIFY ?
+        results.map(r => JSON.stringify(r, null, '  ')) :
+        results.map(r => JSON.stringify(r));
+    if (OUTPUT_FILE) {
+        await fs.writeFile(OUTPUT_FILE, json.join('\n'), 'utf-8');
+    } else {
+        console.log(json.join('\n'));
+    }
+}
 
 // Fetches BigQuery call trace results.
 async function fetchTraces(
-    fromBlockNumber: number,
-    contractAddresses: string[],
+    opts: FetchOpts,
 ): Promise<BigQueryContractCallTracesResp[]> {
-    const query = createBigTableQuery(fromBlockNumber, contractAddresses);
+    const query = createBigTableQuery(opts);
     const bqClient = new BigQuery();
     const [ job ] = await bqClient.createQueryJob({ query, location: 'US' });
     const [ rows ] = await job.getQueryResults();
@@ -94,13 +147,12 @@ async function fetchTraces(
 
 // Create a big table query for call trace results.
 function createBigTableQuery(
-    fromBlockNumber: number,
-    contractAddresses: string[],
+    opts: FetchOpts,
 ): string {
-    const lowercaseContractAddresses = R.map(
-        (s: string) => s.toLowerCase(),
-        contractAddresses,
-    );
+    const calleeAddresses = opts.calleeAddresses.map(s => `'${s.toLowerCase()}'`).join(',');
+    const callerAddresses = (opts.callerAddresses || []).map(s => `'${s.toLowerCase()}'`).join(',');
+    const callTypes = (opts.callTypes || []).map(s => `'${s}'`).join(',');
+    const statusCodes = (opts.statusCodes || []).join(',');
     return `
         SELECT
             c.transaction_hash,
@@ -113,34 +165,48 @@ function createBigTableQuery(
             c.input AS call_data,
             c.output AS call_output,
             c.value,
-            c.status
+            c.status,
+            c.error,
         FROM \`bigquery-public-data.crypto_ethereum.traces\` c
         LEFT JOIN \`bigquery-public-data.crypto_ethereum.transactions\` t ON c.transaction_hash = t.hash
         WHERE
-                c.block_number >= ${fromBlockNumber}
-            AND
-                /* Must be a stateful transaction */
-                c.call_type = 'call'
-            AND
-                /* Must not be an internal/delegated call */
+                -- Must not be an internal/delegated call
                 c.from_address <> c.to_address
             AND
-                lower(c.to_address) in ('${lowercaseContractAddresses.join("','")}')
+                -- Must be to a callee address
+                lower(c.to_address) IN (${calleeAddresses})
+            AND
+                -- Must be >= startBlock
+                ${opts.startBlock !== undefined ? `c.block_number >= ${opts.startBlock}` : `1=1`}
+            AND
+                -- Must be < endBlock
+                ${opts.endBlock !== undefined ? `c.block_number < ${opts.endBlock}` : `1=1`}
+            AND
+                -- Must be a call type we want.
+                ${callTypes.length > 0 ?  `c.call_type IN (${callTypes})` : `1=1`}
+            AND
+                -- Must have a status code we want.
+                ${statusCodes.length > 0 ?  `c.status IN (${statusCodes})` : `1=1`}
+            AND
+                -- Must be from a caller address
+                ${callerAddresses.length > 0 ? `c.from_address IN (${callerAddresses})` : `1=1`}
         ORDER BY c.block_number ASC
+        ${opts.limit ? `LIMIT ${opts.limit}` : ``}
     `;
 }
 
-function getStatefulContractFunctions(contractAbi: ContractAbi): ContractFunctionNamesBySelector {
+function getContractFunctions(contractAbi: ContractAbi, all=false): ContractFunctionNamesBySelector {
     const results = {} as ContractFunctionNamesBySelector;
     // Find all non-constant Exchange contract functions.
     for (const abi of contractAbi as MethodAbi[]) {
-        const isMutatorFunction =
+        const isCandidateFunction =
             abi.type === 'function' &&
             (
+                all ||
                 abi.stateMutability === undefined ||
                 !R.includes(abi.stateMutability, ['view', 'pure'])
             );
-        if (isMutatorFunction) {
+        if (isCandidateFunction) {
             const abiEncoder = new AbiEncoder.Method(abi);
             results[abiEncoder.getSelector()] = abi.name;
         }
@@ -160,6 +226,7 @@ function parseBigTableQueryResults(
                 transactionHash: bqResult.transaction_hash,
                 blockNumber: bqResult.block_number,
                 traceAddress: bqResult.trace_address,
+                functionName: fns[selector],
                 fromAddress: bqResult.from_address,
                 toAddress: bqResult.to_address,
                 callerAddress: bqResult.caller_address,
@@ -168,7 +235,7 @@ function parseBigTableQueryResults(
                 callOutput: bqResult.call_output,
                 value: new BigNumber(bqResult.value.toString()),
                 status: bqResult.status,
-                functionName: fns[selector],
+                error: bqResult.error,
             });
         }
     }

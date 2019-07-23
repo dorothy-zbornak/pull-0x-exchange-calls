@@ -8,7 +8,25 @@ Place your Google credentials file in `/credentials.json`
 
 ## Running
 ```bash
-yarn start [--start-block BLOCK_NUMBER] [--pretty]
+yarn start
+    # First block to scan. Defaults to 0.
+    [--start-block BLOCK_NUMBER]
+    # Last block to scan. Defaults to latest.
+    [--end-block BLOCK_NUMBER]
+    # Direct caller of Exchange contract. Defaults to any. Repeatable.
+    [--caller ADDRESS]
+    # Type of call. Defaults to all. Repeatable.
+    [--call-type call | staticall | callcode | delegatecall]
+    # Whether to capture all exchange functions (not just mutators).
+    [--all]
+    # The status of the transaction (0 for failure, 1 for success). Defaults to either. Repeatable.
+    [--status 0 | 1]
+    # Maximum number of results to return. Defaults to unlimited.
+    [--limit NUMBER]
+    # Whether to pretty-print the output.
+    [--pretty]
+    # File to write output JSON to. Will print to terminal otherwise.
+    [--output FILE]
 ```
 
 ## Sample Output
@@ -25,7 +43,8 @@ yarn start [--start-block BLOCK_NUMBER] [--pretty]
   "callOutput": "0x0000000000000000000000000000000000000000000000391622d55cfa4bd400000000000000000000000000000000000000000000000000000000003e236dea00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
   "value": "0",
   "status": 1,
-  "functionName": "fillOrKillOrder"
+  "functionName": "fillOrKillOrder",
+  "error": null
 }
 ...
 ```
