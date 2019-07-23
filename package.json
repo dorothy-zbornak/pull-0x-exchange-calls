@@ -1,6 +1,6 @@
 {
     "name": "pull-0x-exchange-calls",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "main": "lib/src/index.js",
     "license": "Apache-2.0",
     "scripts": {

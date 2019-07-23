@@ -166,7 +166,7 @@ function createBigTableQuery(
             c.output AS call_output,
             c.value,
             c.status,
-            c.error,
+            c.error
         FROM \`bigquery-public-data.crypto_ethereum.traces\` c
         LEFT JOIN \`bigquery-public-data.crypto_ethereum.transactions\` t ON c.transaction_hash = t.hash
         WHERE
