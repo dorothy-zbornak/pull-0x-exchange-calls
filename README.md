@@ -21,8 +21,11 @@ yarn start
     [--caller ADDRESS]
     # Type of call. Defaults to all. Repeatable.
     [--call-type call | staticall | callcode | delegatecall]
-    # Whether to capture all exchange functions (not just mutators).
-    [--all]
+    # Whether to also capture constant function calls.
+    [--include-constant-functions]
+    # What exchange function call to capture (defaults to just mutators). Repeatable.
+    # Use '!FUNCTION_NAME' to exclude a function.
+    [--function FUNCTION_NAME]
     # The status of the transaction (0 for failure, 1 for success). Defaults to either. Repeatable.
     [--status 0 | 1]
     # Maximum number of results to return. Defaults to unlimited.

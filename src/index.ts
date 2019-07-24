@@ -84,11 +84,12 @@ const ARGV = yargs
     .number('startBlock')
     .number('endBlock')
     .number('limit')
-    .boolean('all')
+    .boolean('includeConstantFunctions')
     .boolean('pretty')
     .string('output')
     .string('since')
     .string('until')
+    .array('function')
     .array('status')
     .array('caller')
     .array('callType')
@@ -103,12 +104,22 @@ const UNTIL: Date | undefined = chrono.parseDate(ARGV.until as string) || undefi
 const CALLERS: string[] = ARGV.caller as string[] || [];
 const CALL_TYPES: CallType[] = ARGV.callee as CallType[] || [];
 const STATUS_CODES: number[] = ARGV.status as number[] || [];
-const ALL_FUNCTIONS = ARGV.all as boolean || false;
 const LIMIT: number | undefined = ARGV.limit;
 const OUTPUT_FILE: string | undefined = ARGV.output;
 const PRETTIFY: boolean = ARGV.pretty || false;
+const INCLUDE_CONSTANT_FUNCTIONS: boolean = ARGV.includeConstantFunctions || false;
+const CONTRACT_FUNCTIONS: string[] = ARGV.function as string[] || [];
 
 (async () => {
+    const fns = getContractFunctions(
+        ExchangeArtifact.compilerOutput.abi,
+        CONTRACT_FUNCTIONS,
+        INCLUDE_CONSTANT_FUNCTIONS,
+    );
+    if (Object.keys(fns).length == 0) {
+        throw new Error('No function calls to capture!');
+    }
+    console.info(`Fetching calls to ${Object.values(fns).sort().join(', ')}...`);
     const results = parseBigTableQueryResults(
         await fetchTraces(
             {
@@ -126,7 +137,7 @@ const PRETTIFY: boolean = ARGV.pretty || false;
                 limit: LIMIT,
             }
         ),
-        getContractFunctions(ExchangeArtifact.compilerOutput.abi, ALL_FUNCTIONS),
+        fns,
     );
     await writeOutput(results);
 })();
@@ -210,20 +221,26 @@ function createBigTableQuery(
     `;
 }
 
-function getContractFunctions(contractAbi: ContractAbi, all=false): ContractFunctionNamesBySelector {
+function getContractFunctions(
+    contractAbi: ContractAbi,
+    names: string[] = [],
+    includeConstants: boolean,
+): ContractFunctionNamesBySelector {
+    const ignoredNames = names.filter(n => n.startsWith('!')).map(n => n.substr(1));
+    const wantedNames = names.filter(n => !n.startsWith('!'));
     const results = {} as ContractFunctionNamesBySelector;
     // Find all non-constant Exchange contract functions.
     for (const abi of contractAbi as MethodAbi[]) {
-        const isCandidateFunction =
-            abi.type === 'function' &&
-            (
-                all ||
-                abi.stateMutability === undefined ||
-                !R.includes(abi.stateMutability, ['view', 'pure'])
-            );
-        if (isCandidateFunction) {
-            const abiEncoder = new AbiEncoder.Method(abi);
-            results[abiEncoder.getSelector()] = abi.name;
+        if (abi.type === 'function') {
+            const isMutator = abi.stateMutability === undefined ||
+                !R.includes(abi.stateMutability, ['view', 'pure']);
+            if (isMutator || includeConstants) {
+                if (!R.includes(abi.name, ignoredNames)) {
+                    if (wantedNames.length == 0 || R.includes(abi.name, wantedNames)) {
+                        results[new AbiEncoder.Method(abi).getSelector()] = abi.name;
+                    }
+                }
+            }
         }
     }
     return results;
