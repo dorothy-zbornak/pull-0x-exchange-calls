@@ -4,6 +4,7 @@ import { Exchange as ExchangeArtifact } from '@0x/contract-artifacts';
 import { AbiEncoder, BigNumber } from '@0x/utils';
 import { BigQuery } from '@google-cloud/bigquery';
 import { ContractAbi, MethodAbi } from 'ethereum-types';
+import * as chrono from  'chrono-node';
 import * as fs from 'mz/fs';
 import * as R from 'ramda';
 import * as yargs from 'yargs';
@@ -72,6 +73,8 @@ interface FetchOpts {
     callTypes: CallType[];
     startBlock?: number;
     endBlock?: number;
+    since?: Date;
+    until?: Date;
     callerAddresses?: string[];
     statusCodes?: number[];
     limit?: number;
@@ -84,6 +87,8 @@ const ARGV = yargs
     .boolean('all')
     .boolean('pretty')
     .string('output')
+    .string('since')
+    .string('until')
     .array('status')
     .array('caller')
     .array('callType')
@@ -91,9 +96,10 @@ const ARGV = yargs
 
 // The network ID the Exchange contract is deployed on.
 const NETWORK_ID = 1;
-// The earliest block number to search.
 const START_BLOCK: number | undefined = ARGV.startBlock as number;
 const END_BLOCK: number | undefined = ARGV.endBlock as number;
+const SINCE: Date | undefined = chrono.parseDate(ARGV.since as string) || undefined;
+const UNTIL: Date | undefined = chrono.parseDate(ARGV.until as string) || undefined;
 const CALLERS: string[] = ARGV.caller as string[] || [];
 const CALL_TYPES: CallType[] = ARGV.callee as CallType[] || [];
 const STATUS_CODES: number[] = ARGV.status as number[] || [];
@@ -114,6 +120,8 @@ const PRETTIFY: boolean = ARGV.pretty || false;
                 callTypes: CALL_TYPES,
                 startBlock: START_BLOCK,
                 endBlock: END_BLOCK,
+                since: SINCE,
+                until: UNTIL,
                 statusCodes: STATUS_CODES,
                 limit: LIMIT,
             }
@@ -157,6 +165,7 @@ function createBigTableQuery(
         SELECT
             c.transaction_hash,
             c.block_number,
+            c.block_timestamp,
             c.trace_address,
             t.from_address,
             t.to_address,
@@ -175,6 +184,12 @@ function createBigTableQuery(
             AND
                 -- Must be to a callee address
                 lower(c.to_address) IN (${calleeAddresses})
+            AND
+                -- Must be >= since
+                ${opts.since !== undefined ? `c.block_timestamp >= TIMESTAMP_MILLIS(${opts.since.getTime()})` : `1=1`}
+            AND
+                -- Must be <= until
+                ${opts.until !== undefined ? `c.block_timestamp <= TIMESTAMP_MILLIS(${opts.until.getTime()})` : `1=1`}
             AND
                 -- Must be >= startBlock
                 ${opts.startBlock !== undefined ? `c.block_number >= ${opts.startBlock}` : `1=1`}
