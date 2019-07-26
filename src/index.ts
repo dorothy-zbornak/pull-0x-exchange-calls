@@ -3,7 +3,7 @@ import { getContractAddressesForNetworkOrThrow as getV2_0ContractAddresses } fro
 import { Exchange as ExchangeArtifact } from '@0x/contract-artifacts';
 import { AbiEncoder, BigNumber } from '@0x/utils';
 import { BigQuery } from '@google-cloud/bigquery';
-import { ContractAbi, MethodAbi } from 'ethereum-types';
+import { ContractAbi, ContractArtifact, MethodAbi } from 'ethereum-types';
 import * as chrono from  'chrono-node';
 import * as fs from 'mz/fs';
 import * as R from 'ramda';
@@ -123,7 +123,7 @@ const CONTRACT_FUNCTIONS: string[] = ARGV.function as string[] || [];
         ];
     const abi = CALLEE_ABI !== undefined ?
         require(CALLEE_ABI) :
-        ExchangeArtifact.compilerOutput.abi;
+        ExchangeArtifact;
     const fns = getContractFunctions(
         abi,
         CONTRACT_FUNCTIONS,
@@ -232,15 +232,18 @@ function createBigTableQuery(
 }
 
 function getContractFunctions(
-    contractAbi: ContractAbi,
+    contractAbi: ContractAbi | ContractArtifact,
     names: string[] = [],
     includeConstants: boolean,
 ): ContractFunctionNamesBySelector {
+    const _contractAbi = isContractArtifact(contractAbi) ?
+        contractAbi.compilerOutput.abi :
+        contractAbi;
     const ignoredNames = names.filter(n => n.startsWith('!')).map(n => n.substr(1));
     const wantedNames = names.filter(n => !n.startsWith('!'));
     const results = {} as ContractFunctionNamesBySelector;
     // Find all non-constant Exchange contract functions.
-    for (const abi of contractAbi as MethodAbi[]) {
+    for (const abi of _contractAbi as MethodAbi[]) {
         if (abi.type === 'function') {
             const isMutator = abi.stateMutability === undefined ||
                 !R.includes(abi.stateMutability, ['view', 'pure']);
@@ -254,6 +257,10 @@ function getContractFunctions(
         }
     }
     return results;
+}
+
+function isContractArtifact(abi: ContractAbi | ContractArtifact): abi is ContractArtifact {
+    return 'compilerOutput' in abi;
 }
 
 function parseBigTableQueryResults(
