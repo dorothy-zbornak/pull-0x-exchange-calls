@@ -106,7 +106,7 @@ const UNTIL: Date | undefined = chrono.parseDate(ARGV.until as string) || undefi
 const CALLERS: string[] = ARGV.caller as string[] || [];
 const CALLEES: string[] = ARGV.callee as string[] || [];
 const CALLEE_ABI: string | undefined = ARGV.calleeAbi as string;
-const CALL_TYPES: CallType[] = ARGV.callee as CallType[] || [];
+const CALL_TYPES: CallType[] = ARGV.callType as CallType[] || [];
 const STATUS_CODES: number[] = ARGV.status as number[] || [];
 const LIMIT: number | undefined = ARGV.limit;
 const OUTPUT_FILE: string | undefined = ARGV.output;
@@ -168,6 +168,7 @@ async function fetchTraces(
     opts: FetchOpts,
 ): Promise<BigQueryContractCallTracesResp[]> {
     const query = createBigTableQuery(opts);
+    console.log(query);
     const bqClient = new BigQuery();
     const [ job ] = await bqClient.createQueryJob({ query, location: 'US' });
     const [ rows ] = await job.getQueryResults();
