@@ -89,10 +89,12 @@ const ARGV = yargs
     .string('output')
     .string('since')
     .string('until')
+    .string('calleeAbi')
     .array('function')
     .array('status')
     .array('caller')
     .array('callType')
+    .array('callee')
     .argv;
 
 // The network ID the Exchange contract is deployed on.
@@ -102,6 +104,8 @@ const END_BLOCK: number | undefined = ARGV.endBlock as number;
 const SINCE: Date | undefined = chrono.parseDate(ARGV.since as string) || undefined;
 const UNTIL: Date | undefined = chrono.parseDate(ARGV.until as string) || undefined;
 const CALLERS: string[] = ARGV.caller as string[] || [];
+const CALLEES: string[] = ARGV.callee as string[] || [];
+const CALLEE_ABI: string | undefined = ARGV.calleeAbi as string;
 const CALL_TYPES: CallType[] = ARGV.callee as CallType[] || [];
 const STATUS_CODES: number[] = ARGV.status as number[] || [];
 const LIMIT: number | undefined = ARGV.limit;
@@ -111,22 +115,28 @@ const INCLUDE_CONSTANT_FUNCTIONS: boolean = ARGV.includeConstantFunctions || fal
 const CONTRACT_FUNCTIONS: string[] = ARGV.function as string[] || [];
 
 (async () => {
+    const callees = CALLEES.length > 0 ?
+        CALLEES :
+        [
+            getV2_0ContractAddresses(NETWORK_ID).exchange,
+            getV2_1ContractAddresses(NETWORK_ID).exchange,
+        ];
+    const abi = CALLEE_ABI !== undefined ?
+        require(CALLEE_ABI) :
+        ExchangeArtifact.compilerOutput.abi;
     const fns = getContractFunctions(
-        ExchangeArtifact.compilerOutput.abi,
+        abi,
         CONTRACT_FUNCTIONS,
         INCLUDE_CONSTANT_FUNCTIONS,
     );
     if (Object.keys(fns).length == 0) {
         throw new Error('No function calls to capture!');
     }
-    console.info(`Fetching calls to ${Object.values(fns).sort().join(', ')}...`);
+    console.info(`Fetching calls to ${callees} functions: ${Object.values(fns).sort().join(', ')}...`);
     const results = parseBigTableQueryResults(
         await fetchTraces(
             {
-                calleeAddresses: [
-                    getV2_0ContractAddresses(NETWORK_ID).exchange,
-                    getV2_1ContractAddresses(NETWORK_ID).exchange,
-                ],
+                calleeAddresses: callees,
                 callerAddresses: CALLERS,
                 callTypes: CALL_TYPES,
                 startBlock: START_BLOCK,

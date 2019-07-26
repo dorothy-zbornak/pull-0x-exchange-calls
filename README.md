@@ -26,6 +26,10 @@ yarn start
     # What exchange function call to capture (defaults to just mutators). Repeatable.
     # Use '!FUNCTION_NAME' to exclude a function.
     [--function FUNCTION_NAME]
+    # Address of the contract being called. Defaults to v2 and v2.1 Exchange addresses. Repeatable.
+    [--callee ADDRESS]
+    # ABI file of the contract being called. Defaults to the Exchange ABI. Repeatable.
+    [--callee-abi PATH]
     # The status of the transaction (0 for failure, 1 for success). Defaults to either. Repeatable.
     [--status 0 | 1]
     # Maximum number of results to return. Defaults to unlimited.
