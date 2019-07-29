@@ -168,7 +168,6 @@ async function fetchTraces(
     opts: FetchOpts,
 ): Promise<BigQueryContractCallTracesResp[]> {
     const query = createBigTableQuery(opts);
-    console.log(query);
     const bqClient = new BigQuery();
     const [ job ] = await bqClient.createQueryJob({ query, location: 'US' });
     const [ rows ] = await job.getQueryResults();
