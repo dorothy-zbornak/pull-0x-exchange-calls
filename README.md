@@ -7,6 +7,9 @@ yarn
 Place your Google credentials file in `/credentials.json`
 
 ## Running
+
+* Note that you should specify a `--start-block`, `--since`, or `--limit` to avoid blowing your big query budget on a single unbounded query.
+
 ```bash
 yarn start
     # First block to scan. Defaults to 0.
