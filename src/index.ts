@@ -6,6 +6,7 @@ import { BigQuery } from '@google-cloud/bigquery';
 import { ContractAbi, ContractArtifact, MethodAbi } from 'ethereum-types';
 import * as chrono from  'chrono-node';
 import * as fs from 'mz/fs';
+import * as path from 'path';
 import * as R from 'ramda';
 import * as yargs from 'yargs';
 
@@ -89,7 +90,7 @@ const ARGV = yargs
     .string('output')
     .string('since')
     .string('until')
-    .string('calleeAbi')
+    .array('calleeAbi')
     .array('function')
     .array('status')
     .array('caller')
@@ -105,7 +106,7 @@ const SINCE: Date | undefined = chrono.parseDate(ARGV.since as string) || undefi
 const UNTIL: Date | undefined = chrono.parseDate(ARGV.until as string) || undefined;
 const CALLERS: string[] = ARGV.caller as string[] || [];
 const CALLEES: string[] = ARGV.callee as string[] || [];
-const CALLEE_ABI: string | undefined = ARGV.calleeAbi as string;
+const CALLEE_ABIS: string[] = ARGV.calleeAbi as string[] || [];
 const CALL_TYPES: CallType[] = ARGV.callType as CallType[] || [];
 const STATUS_CODES: number[] = ARGV.status as number[] || [];
 const LIMIT: number | undefined = ARGV.limit;
@@ -121,13 +122,16 @@ const CONTRACT_FUNCTIONS: string[] = ARGV.function as string[] || [];
             getV2_0ContractAddresses(NETWORK_ID).exchange,
             getV2_1ContractAddresses(NETWORK_ID).exchange,
         ];
-    const abi = CALLEE_ABI !== undefined ?
-        require(CALLEE_ABI) :
-        ExchangeArtifact;
-    const fns = getContractFunctions(
-        abi,
-        CONTRACT_FUNCTIONS,
-        INCLUDE_CONSTANT_FUNCTIONS,
+    const abis: Array<ContractAbi | ContractArtifact> =
+        CALLEE_ABIS.length == 0 ?
+        ExchangeArtifact :
+        CALLEE_ABIS.map(file => require(path.resolve(file))) as any;
+    const fns = R.mergeAll(abis.map(
+        abi => getContractFunctions(
+            abi,
+            CONTRACT_FUNCTIONS,
+            INCLUDE_CONSTANT_FUNCTIONS,
+        )),
     );
     if (Object.keys(fns).length == 0) {
         throw new Error('No function calls to capture!');
