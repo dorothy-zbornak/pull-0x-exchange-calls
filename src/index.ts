@@ -88,6 +88,7 @@ const ARGV = yargs
     .boolean('includeConstantFunctions')
     .boolean('pretty')
     .string('output')
+    .string('credentials')
     .string('since')
     .string('until')
     .array('calleeAbi')
@@ -111,6 +112,7 @@ const CALL_TYPES: CallType[] = ARGV.callType as CallType[] || [];
 const STATUS_CODES: number[] = ARGV.status as number[] || [];
 const LIMIT: number | undefined = ARGV.limit;
 const OUTPUT_FILE: string | undefined = ARGV.output;
+const CREDENTIALS_FILE: string | undefined = ARGV.credentials;
 const PRETTIFY: boolean = ARGV.pretty || false;
 const INCLUDE_CONSTANT_FUNCTIONS: boolean = ARGV.includeConstantFunctions || false;
 const CONTRACT_FUNCTIONS: string[] = ARGV.function as string[] || [];
@@ -172,7 +174,11 @@ async function fetchTraces(
     opts: FetchOpts,
 ): Promise<BigQueryContractCallTracesResp[]> {
     const query = createBigTableQuery(opts);
-    const bqClient = new BigQuery();
+    const bqOpts = {} as any;
+    if (CREDENTIALS_FILE) {
+        bqOpts.keyFileName = CREDENTIALS_FILE;
+    }
+    const bqClient = new BigQuery(bqOpts);
     const [ job ] = await bqClient.createQueryJob({ query, location: 'US' });
     const [ rows ] = await job.getQueryResults();
     return rows;

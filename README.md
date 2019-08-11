@@ -42,6 +42,8 @@ yarn start
     [--pretty]
     # File to write output JSON to. Will print to terminal otherwise.
     [--output FILE]
+    # Explicitly specify Google credentials JSON file path.
+    [--credentials FILE]
 ```
 
 ## Sample Output
