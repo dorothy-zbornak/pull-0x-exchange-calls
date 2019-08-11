@@ -126,7 +126,7 @@ const CONTRACT_FUNCTIONS: string[] = ARGV.function as string[] || [];
         ];
     const abis: Array<ContractAbi | ContractArtifact> =
         CALLEE_ABIS.length == 0 ?
-        ExchangeArtifact :
+        [ ExchangeArtifact ] :
         CALLEE_ABIS.map(file => require(path.resolve(file))) as any;
     const fns = R.mergeAll(abis.map(
         abi => getContractFunctions(
@@ -176,7 +176,14 @@ async function fetchTraces(
     const query = createBigTableQuery(opts);
     const bqOpts = {} as any;
     if (CREDENTIALS_FILE) {
-        bqOpts.keyFileName = CREDENTIALS_FILE;
+        const credentials =  JSON.parse(fs.readFileSync(CREDENTIALS_FILE, 'utf-8'));
+        Object.assign(bqOpts, {
+            credentials: {
+                client_email: credentials.client_email,
+                private_key: credentials.private_key,
+            },
+            projectId: credentials.project_id || credentials.projectId,
+        });
     }
     const bqClient = new BigQuery(bqOpts);
     const [ job ] = await bqClient.createQueryJob({ query, location: 'US' });
