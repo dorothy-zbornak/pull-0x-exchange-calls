@@ -1,12 +1,13 @@
 {
     "name": "pull-0x-exchange-calls",
-    "version": "0.6.6",
+    "version": "0.6.7",
     "main": "lib/src/index.js",
     "license": "Apache-2.0",
     "scripts": {
         "build": "tsc -b",
         "start": "GOOGLE_APPLICATION_CREDENTIALS=./credentials.json node --max-old-space-size=8192 lib/src/index.js"
     },
+    "bin": "bin.js",
     "dependencies": {
         "@0x/contract-addresses": "^3.0.2",
         "@0x/contract-addresses-v2": "npm:@0x/contract-addresses@^2",
