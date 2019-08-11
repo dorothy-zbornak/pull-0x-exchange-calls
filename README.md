@@ -3,6 +3,7 @@
 git clone git@github.com:dorothy-zbornak/pull-0x-exchange-calls
 cd pull-0x-exchange-calls
 yarn
+yarn build
 ```
 Place your Google credentials file in `/credentials.json`
 
