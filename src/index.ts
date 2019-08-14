@@ -20,6 +20,7 @@ interface BigQueryContractCallTracesResp {
     callee_address: string;
     call_data: string;
     call_output: string;
+    call_type: string;
     value: {toString(): string};
     status: number;
     error: string;
@@ -50,6 +51,8 @@ interface ContractCall {
     callData: string;
     // The ABI-encoded call output.
     callOutput: string | null;
+    // The call type.
+    callType: string;
     // Ether sent along with the call, in wei.
     value: BigNumber;
     // Either 1 (success) or 0 (failure).
@@ -211,6 +214,7 @@ function createBigTableQuery(
             c.to_address AS callee_address,
             c.input AS call_data,
             c.output AS call_output,
+            c.call_type,
             c.value,
             c.status,
             c.error
@@ -299,6 +303,7 @@ function parseBigTableQueryResults(
                 calleeAddress: bqResult.callee_address,
                 callData: bqResult.call_data,
                 callOutput: bqResult.call_output,
+                callType: bqResult.call_type,
                 value: new BigNumber(bqResult.value.toString()),
                 status: bqResult.status,
                 error: bqResult.error,
