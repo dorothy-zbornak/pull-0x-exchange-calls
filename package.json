@@ -1,11 +1,11 @@
 {
     "name": "pull-0x-exchange-calls",
-    "version": "0.6.12",
+    "version": "0.6.13",
     "main": "lib/src/index.js",
     "license": "Apache-2.0",
     "scripts": {
         "build": "tsc -b",
-        "start": "GOOGLE_APPLICATION_CREDENTIALS=./foo_credentials.json node --max-old-space-size=8192 lib/src/index.js"
+        "start": "GOOGLE_APPLICATION_CREDENTIALS=./credentials.json node --max-old-space-size=8192 lib/src/index.js"
     },
     "bin": "bin.js",
     "dependencies": {
