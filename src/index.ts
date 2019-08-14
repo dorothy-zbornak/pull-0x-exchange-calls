@@ -13,6 +13,7 @@ import * as yargs from 'yargs';
 interface BigQueryContractCallTracesResp {
     transaction_hash: string;
     block_number: number;
+    block_timestamp: string;
     trace_address: string;
     from_address: string;
     to_address: string;
@@ -29,13 +30,11 @@ interface BigQueryContractCallTracesResp {
 // Parsed contract call entry.
 interface ContractCall {
     // The transaction hash.
-    // (PrimaryColumn)
     transactionHash: string;
     // The block number of the transaction.
-    // (PrimaryColumn)
     blockNumber: number;
     // Comma separated list of trace address in call tree.
-    // (PrimaryColumn)
+    timestamp: number,
     traceAddress: string;
     // The decoded function name.
     functionName: string;
@@ -295,6 +294,7 @@ function parseBigTableQueryResults(
             results.push({
                 transactionHash: bqResult.transaction_hash,
                 blockNumber: bqResult.block_number,
+                timestamp: Math.floor(new Date(bqResult.block_timestamp).getTime() / 1000),
                 traceAddress: bqResult.trace_address,
                 functionName: fns[selector],
                 fromAddress: bqResult.from_address,
