@@ -226,6 +226,9 @@ function createBigTableQuery(
                 -- Must be to a callee address
                 lower(c.to_address) IN (${calleeAddresses})
             AND
+                -- Must not be from a callee address
+                lower(c.from_address) NOT IN (${calleeAddresses})
+            AND
                 -- Must be >= since
                 ${opts.since !== undefined ? `c.block_timestamp >= TIMESTAMP_MILLIS(${opts.since.getTime()})` : `1=1`}
             AND
