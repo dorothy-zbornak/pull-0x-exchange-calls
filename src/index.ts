@@ -81,6 +81,7 @@ interface FetchOpts {
     callerAddresses?: string[];
     statusCodes?: number[];
     limit?: number;
+    allowInternal?: boolean;
 }
 
 const ARGV = yargs
@@ -89,6 +90,7 @@ const ARGV = yargs
     .number('limit')
     .boolean('includeConstantFunctions')
     .boolean('pretty')
+    .boolean('allowInternal')
     .string('output')
     .string('credentials')
     .string('since')
@@ -118,6 +120,8 @@ const CREDENTIALS_FILE: string | undefined = ARGV.credentials;
 const PRETTIFY: boolean = ARGV.pretty || false;
 const INCLUDE_CONSTANT_FUNCTIONS: boolean = ARGV.includeConstantFunctions || false;
 const CONTRACT_FUNCTIONS: string[] = ARGV.function as string[] || [];
+const ALLOW_INTERNAL: boolean = ARGV.allowInternal as boolean || false;
+
 
 (async () => {
     const callees = CALLEES.length > 0 ?
@@ -153,6 +157,7 @@ const CONTRACT_FUNCTIONS: string[] = ARGV.function as string[] || [];
                 until: UNTIL,
                 statusCodes: STATUS_CODES,
                 limit: LIMIT,
+                allowInternal: ALLOW_INTERNAL,
             }
         ),
         fns,
@@ -221,13 +226,10 @@ function createBigTableQuery(
         LEFT JOIN \`bigquery-public-data.crypto_ethereum.transactions\` t ON c.transaction_hash = t.hash
         WHERE
                 -- Must not be an internal/delegated call
-                c.from_address <> c.to_address
+                ${opts.allowInternal ? `1=1` : `c.from_address <> c.to_address`}
             AND
                 -- Must be to a callee address
                 lower(c.to_address) IN (${calleeAddresses})
-            AND
-                -- Must not be from a callee address
-                lower(c.from_address) NOT IN (${calleeAddresses})
             AND
                 -- Must be >= since
                 ${opts.since !== undefined ? `c.block_timestamp >= TIMESTAMP_MILLIS(${opts.since.getTime()})` : `1=1`}

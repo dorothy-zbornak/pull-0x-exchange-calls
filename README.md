@@ -27,6 +27,8 @@ yarn start
     [--call-type call | staticall | callcode | delegatecall]
     # Whether to also capture constant function calls.
     [--include-constant-functions]
+    # Whether to allow internal calls (contract calling itself).
+    [--allow-internal]
     # What exchange function call to capture (defaults to just mutators). Repeatable.
     # Use '!FUNCTION_NAME' to exclude a function.
     [--function FUNCTION_NAME]
